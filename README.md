@@ -1,5 +1,7 @@
 # 代码片段管理器 (Snippets Store)
 
+(个人练手项目-施工中)
+
 ## 项目概述
 
 代码片段管理器是一个轻量级的个人代码片段存储和管理工具，帮助开发者高效地存储、分类、搜索和重用常用代码片段，提高开发效率。该项目包含完整的前后端实现，支持代码片段的创建、编辑、分类、标签、收藏、搜索等功能。
@@ -66,7 +68,7 @@ snippets_store/
 - **collections**：存储集合信息
 - **collection_snippets**：集合-片段关联表
 
-详细的数据库设计请参考[设计文档](design-doc.md)。
+详细的数据库设计请参考[设计文档](docs/design-doc.md)。
 
 ## API设计
 
@@ -77,7 +79,7 @@ snippets_store/
 - **/api/tags**：标签相关操作
 - **/api/collections**：集合相关操作
 
-详细的API规范请参考[API规范文档](backend-api-specification.md)。
+详细的API规范请参考[API规范文档](docs/backend-api-specification.md)。
 
 ## 前端界面
 
@@ -137,16 +139,11 @@ npm run dev
 
 ## 未来计划
 
-- **离线支持**：基于IndexedDB的离线存储
 - **PWA支持**：可安装到桌面
 - **导入/导出功能**：支持JSON、Markdown格式导入导出
-- **GitHub Gist集成**：与GitHub Gist同步
 - **代码片段版本历史**：保存编辑历史，支持版本比较
 - **快捷键支持**：常用操作快捷键，支持自定义
 
-## 贡献
-
-欢迎贡献代码、报告问题或提出改进建议。
 
 ## 许可证
 
