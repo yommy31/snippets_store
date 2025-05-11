@@ -1,0 +1,8 @@
+*.py[oc]
+__pycache__/
+*/__pycache__/
+.ruff_cache/
+.venv/
+# *.sqlite
+snippets.db
+.coverage
