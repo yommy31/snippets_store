@@ -2,19 +2,46 @@
 
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { 
-  PlusIcon, 
-  FolderIcon, 
-  TagIcon, 
-  StarIcon, 
+import {
+  PlusIcon,
+  FolderIcon,
+  TagIcon,
+  StarIcon,
   TrashIcon,
   CodeIcon,
   ChevronRightIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  MoreVertical,
+  PencilIcon,
+  Trash2Icon,
+  MoveIcon
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Category, ViewType } from "@/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 export function Sidebar() {
   const {
@@ -192,41 +219,80 @@ export function Sidebar() {
         <div className="mb-4">
           {sidebarExpanded ? (
             <>
-              <div 
-                className="flex items-center justify-between px-2 py-1 cursor-pointer"
-                onClick={toggleCategories}
+              <div
+                className="flex items-center justify-between px-2 py-1"
               >
-                <h2 className="font-semibold text-sm">Categories</h2>
-                {categoriesExpanded ? (
-                  <ChevronDownIcon className="h-4 w-4" />
-                ) : (
-                  <ChevronRightIcon className="h-4 w-4" />
-                )}
+                <div
+                  className="flex items-center cursor-pointer"
+                  onClick={toggleCategories}
+                >
+                  {categoriesExpanded ? (
+                    <ChevronDownIcon className="h-4 w-4 mr-1" />
+                  ) : (
+                    <ChevronRightIcon className="h-4 w-4 mr-1" />
+                  )}
+                  <h2 className="font-semibold text-sm">Categories</h2>
+                </div>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                    >
+                      <PlusIcon className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => {
+                      // 创建新分类
+                      const store = useAppStore.getState();
+                      const newCategoryName = "New Category";
+                      
+                      // 先创建分类
+                      store.createCategory(newCategoryName)
+                        .then(() => {
+                          // 创建完成后，重新获取分类列表
+                          return store.fetchCategories();
+                        })
+                        .then(() => {
+                          // 找到新创建的分类
+                          const categories = store.categories;
+                          const newCategory = categories.find(c => c.name === newCategoryName && !c.parentId);
+                          if (newCategory) {
+                            // 设置当前分类
+                            store.setCurrentView('category', newCategory.id);
+                            
+                            // 触发重命名模式
+                            setTimeout(() => {
+                              // 这里需要一个全局状态来标记哪个分类需要重命名
+                              // 由于我们没有这样的状态，这里只能设置当前分类
+                              store.setCurrentView('category', newCategory.id);
+                            }, 100);
+                          }
+                        });
+                    }}>
+                      <FolderIcon className="mr-2 h-4 w-4" />
+                      <span>Add Category</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               
               {categoriesExpanded && (
                 <ul className="space-y-1 mt-1">
-                  {categories.map((category) => (
-                    <li key={category.id}>
-                      <Button
-                        variant={currentView === 'category' && currentViewId === category.id ? 'secondary' : 'ghost'}
-                        className="w-full justify-start pl-4 text-sm"
-                        onClick={() => setCurrentView('category', category.id)}
-                      >
-                        <FolderIcon className="h-4 w-4 mr-2" />
-                        {category.name}
-                      </Button>
-                    </li>
+                  {/* 只显示根分类 */}
+                  {getRootCategories(categories).map((category) => (
+                    <CategoryItem
+                      key={category.id}
+                      category={category}
+                      categories={categories}
+                      currentView={currentView}
+                      currentViewId={currentViewId}
+                      setCurrentView={setCurrentView}
+                    />
                   ))}
-                  <li>
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start pl-4 text-sm text-muted-foreground"
-                    >
-                      <PlusIcon className="h-4 w-4 mr-2" />
-                      Add Category
-                    </Button>
-                  </li>
                 </ul>
               )}
             </>
@@ -314,4 +380,356 @@ export function Sidebar() {
       </nav>
     </aside>
   );
+}
+
+// 递归渲染分类项
+interface CategoryItemProps {
+  category: Category;
+  categories: Category[];
+  currentView: ViewType;
+  currentViewId?: string;
+  setCurrentView: (view: ViewType, id?: string) => void;
+  level?: number;
+}
+
+function CategoryItem({
+  category,
+  categories,
+  currentView,
+  currentViewId,
+  setCurrentView,
+  level = 0
+}: CategoryItemProps) {
+  const [expanded, setExpanded] = useState(true);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState(category.name);
+  const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
+  const [newSubCategoryName, setNewSubCategoryName] = useState(`New Sub-Category`);
+  const [isMoving, setIsMoving] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | undefined>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // 获取子分类 - 只获取直接子分类
+  const childCategories = categories.filter(c => c.parentId === category.id);
+  const hasChildren = childCategories.length > 0;
+  
+  // 当重命名模式激活时，自动聚焦输入框
+  useEffect(() => {
+    if (isRenaming && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isRenaming]);
+  
+  // 当添加子分类模式激活时，自动聚焦输入框
+  useEffect(() => {
+    if (isAddingSubCategory && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isAddingSubCategory]);
+  
+  // 处理点击展开/折叠
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(!expanded);
+  };
+  
+  // 处理点击分类
+  const handleCategoryClick = () => {
+    setCurrentView('category', category.id);
+  };
+  
+  // 处理重命名确认
+  const handleRenameConfirm = () => {
+    if (newCategoryName && newCategoryName !== category.name) {
+      useAppStore.getState().updateCategory(
+        category.id,
+        newCategoryName,
+        category.description,
+        category.parentId
+      );
+    }
+    setIsRenaming(false);
+  };
+  
+  // 处理添加子分类确认
+  const handleAddSubCategoryConfirm = () => {
+    if (newSubCategoryName) {
+      useAppStore.getState().createCategory(
+        newSubCategoryName,
+        undefined,
+        category.id
+      );
+    }
+    setIsAddingSubCategory(false);
+    setNewSubCategoryName(`New Sub-Category`);
+  };
+  
+  // 处理移动确认
+  const handleMoveConfirm = () => {
+    useAppStore.getState().updateCategory(
+      category.id,
+      category.name,
+      category.description,
+      selectedTargetId
+    );
+    setIsMoving(false);
+    setSelectedTargetId(undefined);
+  };
+  
+  // 处理删除确认
+  const handleDeleteConfirm = () => {
+    useAppStore.getState().deleteCategory(category.id);
+  };
+  
+  // 获取可移动的目标分类（排除自身及其子孙）
+  const getValidMoveTargets = () => {
+    return categories.filter(c =>
+      c.id !== category.id &&
+      !isDescendantOf(c, category.id, categories)
+    );
+  };
+  
+  // 添加代码片段
+  const handleAddSnippet = () => {
+    const store = useAppStore.getState();
+    // 先设置当前分类
+    store.setCurrentView('category', category.id);
+    // 清除选中的代码片段
+    store.setSelectedSnippetId(undefined);
+    // 设置编辑器模式为创建
+    store.setEditorMode('create');
+    
+    // 确保UI更新
+    setTimeout(() => {
+      // 再次确认编辑器模式
+      if (store.editorMode !== 'create') {
+        store.setEditorMode('create');
+      }
+    }, 100);
+  };
+  
+  return (
+    <li>
+      <div
+        className={`flex items-center justify-between group ${
+          currentView === 'category' && currentViewId === category.id ? 'bg-secondary' : 'hover:bg-secondary/50'
+        } rounded-md transition-colors`}
+      >
+        {isRenaming ? (
+          <div
+            className="flex items-center flex-1 py-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 固定宽度的缩进 */}
+            <div style={{ width: `${level * 12 + 16}px` }}></div>
+            
+            {/* 固定宽度的展开/折叠图标区域 */}
+            <div className="w-5 mr-1"></div>
+            
+            <Input
+              ref={inputRef}
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameConfirm();
+                if (e.key === 'Escape') setIsRenaming(false);
+              }}
+              onBlur={handleRenameConfirm}
+              className="h-7 py-0 text-sm"
+            />
+          </div>
+        ) : (
+          <div
+            className="flex items-center flex-1 py-1 cursor-pointer"
+            onClick={handleCategoryClick}
+          >
+            {/* 固定宽度的缩进 */}
+            <div style={{ width: `${level * 12 + 16}px` }}></div>
+            
+            {/* 固定宽度的展开/折叠图标区域 */}
+            <div className="w-5 flex justify-center mr-1">
+              {hasChildren ? (
+                <span
+                  className="cursor-pointer hover:bg-secondary/70 rounded-sm"
+                  onClick={toggleExpand}
+                >
+                  {expanded ? (
+                    <ChevronDownIcon className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRightIcon className="h-3.5 w-3.5" />
+                  )}
+                </span>
+              ) : (
+                <span className="w-3.5">{/* 占位，保持对齐 */}</span>
+              )}
+            </div>
+            
+            <FolderIcon className="h-4 w-4 mr-2 text-amber-500" />
+            <span className="text-sm truncate">{category.name}</span>
+          </div>
+        )}
+        
+        {!isRenaming && (
+          <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuItem onClick={handleAddSnippet}>
+                  <CodeIcon className="mr-2 h-4 w-4" />
+                  <span>Add Snippet</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  setNewSubCategoryName(`New Sub-Category`);
+                  setIsAddingSubCategory(true);
+                }}>
+                  <FolderIcon className="mr-2 h-4 w-4" />
+                  <span>Add Sub-Category</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 mr-1"
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => {
+                  setNewCategoryName(category.name);
+                  setIsRenaming(true);
+                }}>
+                  <PencilIcon className="mr-2 h-4 w-4" />
+                  <span>Rename</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <MoveIcon className="mr-2 h-4 w-4" />
+                    <span>Move to</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          useAppStore.getState().updateCategory(
+                            category.id,
+                            category.name,
+                            category.description,
+                            undefined
+                          );
+                        }}
+                      >
+                        <span>Root</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {getValidMoveTargets().map(target => (
+                        <DropdownMenuItem
+                          key={target.id}
+                          onClick={() => {
+                            useAppStore.getState().updateCategory(
+                              category.id,
+                              category.name,
+                              category.description,
+                              target.id
+                            );
+                          }}
+                        >
+                          <span>{target.name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+                
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete "${category.name}" and all its sub-categories?`)) {
+                      handleDeleteConfirm();
+                    }
+                  }}
+                >
+                  <Trash2Icon className="mr-2 h-4 w-4" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+      </div>
+      
+      {/* 添加子分类对话框 */}
+      {isAddingSubCategory && (
+        <div className="flex items-center py-1">
+          {/* 固定宽度的缩进 - 增加一级 */}
+          <div style={{ width: `${(level+1) * 12 + 16}px` }}></div>
+          
+          {/* 固定宽度的展开/折叠图标区域 */}
+          <div className="w-5 mr-1"></div>
+          
+          <Input
+            ref={inputRef}
+            value={newSubCategoryName}
+            onChange={(e) => setNewSubCategoryName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddSubCategoryConfirm();
+              if (e.key === 'Escape') setIsAddingSubCategory(false);
+            }}
+            onBlur={handleAddSubCategoryConfirm}
+            className="h-7 py-0 text-sm"
+          />
+        </div>
+      )}
+      
+      {/* 子分类列表 */}
+      {hasChildren && expanded && (
+        <ul className="space-y-1">
+          {childCategories.map(child => (
+            <CategoryItem
+              key={child.id}
+              category={child}
+              categories={categories}
+              currentView={currentView}
+              currentViewId={currentViewId}
+              setCurrentView={setCurrentView}
+              level={level + 1}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+// 辅助函数：检查一个分类是否是另一个分类的后代
+function isDescendantOf(category: Category, ancestorId: string, allCategories: Category[]): boolean {
+  if (category.parentId === ancestorId) return true;
+  if (!category.parentId) return false;
+  
+  const parent = allCategories.find(c => c.id === category.parentId);
+  if (!parent) return false;
+  
+  return isDescendantOf(parent, ancestorId, allCategories);
+}
+
+// 辅助函数：获取根分类（没有父分类的分类）
+function getRootCategories(categories: Category[]): Category[] {
+  return categories.filter(c => !c.parentId);
 }

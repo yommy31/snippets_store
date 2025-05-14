@@ -20,6 +20,7 @@ export function SnippetList() {
     currentViewId,
     selectedSnippetId,
     setSelectedSnippetId,
+    editorMode,
     fetchSnippets,
     isLoading,
     error
@@ -120,6 +121,11 @@ export function SnippetList() {
   
   // Select first snippet when filtered list changes
   useEffect(() => {
+    // 如果编辑器处于创建模式，不自动选择片段
+    if (editorMode === 'create') {
+      return;
+    }
+    
     if (filteredSnippets.length > 0 && !selectedSnippetId) {
       setSelectedSnippetId(filteredSnippets[0].id);
     } else if (filteredSnippets.length === 0) {
@@ -127,7 +133,7 @@ export function SnippetList() {
     } else if (selectedSnippetId && !filteredSnippets.some(s => s.id === selectedSnippetId)) {
       setSelectedSnippetId(filteredSnippets[0]?.id);
     }
-  }, [filteredSnippets, selectedSnippetId, setSelectedSnippetId]);
+  }, [filteredSnippets, selectedSnippetId, setSelectedSnippetId, editorMode]);
   
   // If showing detail view on mobile
   if (showDetailOnMobile && selectedSnippetId) {

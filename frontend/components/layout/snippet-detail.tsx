@@ -151,6 +151,11 @@ export function SnippetDetail() {
     );
   }
   
+  // If in edit or create mode, show the form
+  if (editorMode === 'edit' || editorMode === 'create') {
+    return <SnippetForm />;
+  }
+  
   // If no snippet is selected
   if (!selectedSnippet) {
     return (
@@ -176,11 +181,6 @@ export function SnippetDetail() {
         </div>
       </div>
     );
-  }
-  
-  // If in edit or create mode, show the form
-  if (editorMode === 'edit' || editorMode === 'create') {
-    return <SnippetForm />;
   }
   
   return (

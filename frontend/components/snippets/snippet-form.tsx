@@ -56,6 +56,9 @@ export function SnippetForm() {
   const { theme, resolvedTheme } = useTheme();
   const isDarkMode = theme === 'dark' || resolvedTheme === 'dark';
   
+  // 获取当前视图信息
+  const { currentView, currentViewId } = useAppStore();
+  
   // Initialize form with selected snippet data
   useEffect(() => {
     if (isEditMode && selectedSnippet) {
@@ -71,10 +74,17 @@ export function SnippetForm() {
       setDescription('');
       setCode('');
       setLanguage('javascript');
-      setCategoryId(undefined);
+      
+      // 如果当前视图是分类视图，则预设分类ID
+      if (currentView === 'category' && currentViewId) {
+        setCategoryId(currentViewId);
+      } else {
+        setCategoryId(undefined);
+      }
+      
       setSelectedTags([]);
     }
-  }, [isEditMode, isCreateMode, selectedSnippet]);
+  }, [isEditMode, isCreateMode, selectedSnippet, currentView, currentViewId]);
   
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,6 +99,21 @@ export function SnippetForm() {
       toast.error('Code is required');
       return;
     }
+    
+    // 创建所有新标签
+    const createTagPromises = selectedTags.map(async (tag) => {
+      try {
+        // 只有当标签不存在于全局标签列表中时才创建
+        if (!tags.some(t => t.name.toLowerCase() === tag.toLowerCase())) {
+          await createTag(tag);
+        }
+      } catch (error) {
+        console.error(`Error creating tag ${tag}:`, error);
+      }
+    });
+    
+    // 等待所有标签创建完成
+    await Promise.all(createTagPromises);
     
     const snippetData = {
       title: title.trim(),
@@ -118,24 +143,19 @@ export function SnippetForm() {
   // Handle tag input
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
+      e.preventDefault(); // 阻止输入框默认行为
       addTag();
     }
   };
   
-  // Add tag from input
-  const addTag = async () => {
+  // Add tag from input (只在表单内部添加，不立即创建)
+  const addTag = () => {
     const tag = tagInput.trim().toLowerCase();
     
     if (!tag) return;
     
     if (!selectedTags.includes(tag)) {
       setSelectedTags([...selectedTags, tag]);
-      try {
-        await createTag(tag);
-      } catch (error) {
-        console.error('Error creating tag:', error);
-      }
     }
     
     setTagInput('');
@@ -303,7 +323,7 @@ export function SnippetForm() {
             >
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" onClick={handleSubmit}>
               {isEditMode ? 'Update' : 'Create'}
             </Button>
           </div>
