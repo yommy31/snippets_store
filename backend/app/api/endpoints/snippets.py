@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.snippet import Snippet as SnippetModel
 from app.schemas.snippet import (
     SnippetCreate,
+    SnippetFavoriteToggleQuery,
     SnippetUpdate,
     SnippetResponse,
     SnippetsResponse,
@@ -46,7 +47,7 @@ async def get_snippets(
         None, description="Search in title, description, and code"
     ),
     language: Optional[str] = Query(None, description="Filter by programming language"),
-    category_id: Optional[str] = Query(None, description="Filter by category ID"),
+    category_id: Optional[str] = Query(None, description="Filter by category ID", alias="categoryId"),
     tag: Optional[str] = Query(None, description="Filter by tag name"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -78,7 +79,7 @@ async def search_snippets(
     deleted: Optional[bool] = Query(False, description="Include deleted snippets"),
     favorite: Optional[bool] = Query(None, description="Filter by favorite status"),
     language: Optional[str] = Query(None, description="Filter by programming language"),
-    category_id: Optional[str] = Query(None, description="Filter by category ID"),
+    category_id: Optional[str] = Query(None, description="Filter by category ID", alias="categoryId"),
     tag: Optional[str] = Query(None, description="Filter by tag name"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -247,13 +248,13 @@ async def permanently_delete_snippet(
 
 @router.post("/{snippet_id}/favorite", response_model=SnippetResponse)
 async def toggle_favorite(
+    favorite_query: SnippetFavoriteToggleQuery,
     snippet_id: str = Path(..., description="Snippet ID"),
-    is_favorite: bool = Query(..., description="Favorite status"),
     db: Session = Depends(get_db),
 ):
     """Toggle favorite status of a snippet."""
     try:
-        snippet_model = snippet_crud.toggle_favorite(db, snippet_id, is_favorite)
+        snippet_model = snippet_crud.toggle_favorite(db, snippet_id, favorite_query.is_favorite)
         snippet_dict = convert_tags_to_names(snippet_model)
         return {"snippet": snippet_dict}
     except NotFoundError as e:

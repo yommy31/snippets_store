@@ -7,6 +7,12 @@ from app.schemas.camel_model import CamelModel
 
 
 # Base Snippet Schema
+class SnippetFavoriteToggleQuery(CamelModel):
+    """toggle favorite status of a snippet."""
+    is_favorite: bool
+    
+
+# Base Snippet Schema
 class SnippetBase(CamelModel):
     """Base schema for snippet data."""
 
