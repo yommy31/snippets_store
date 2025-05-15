@@ -2,6 +2,7 @@
 
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { getTagColor } from "@/lib/utils";
 import { 
   EditIcon, 
   StarIcon, 
@@ -249,14 +250,17 @@ export function SimplifiedSnippetDetail() {
           <div className="mb-4">
             <h3 className="text-sm font-semibold mb-1">Tags</h3>
             <div className="flex flex-wrap gap-1">
-              {selectedSnippet.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-1 bg-secondary text-secondary-foreground rounded-md text-xs"
-                >
-                  {tag}
-                </span>
-              ))}
+              {selectedSnippet.tags.map((tag) => {
+                const tagColor = getTagColor(tag);
+                return (
+                  <span
+                    key={tag}
+                    className={`px-2 py-1 rounded-md text-xs ${tagColor.bg} ${tagColor.text}`}
+                  >
+                    {tag}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}

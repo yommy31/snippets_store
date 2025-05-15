@@ -2,6 +2,7 @@
 
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { getTagColor } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { 
@@ -263,21 +264,24 @@ export function SnippetForm() {
               Tags
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {selectedTags.map((tag) => (
-                <div 
-                  key={tag} 
-                  className="flex items-center gap-1 px-2 py-1 bg-secondary text-secondary-foreground rounded-md text-sm"
-                >
-                  <span>{tag}</span>
-                  <button 
-                    type="button" 
-                    onClick={() => removeTag(tag)}
-                    className="text-muted-foreground hover:text-foreground"
+              {selectedTags.map((tag) => {
+                const tagColor = getTagColor(tag);
+                return (
+                  <div
+                    key={tag}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-sm ${tagColor.bg}`}
                   >
-                    &times;
-                  </button>
-                </div>
-              ))}
+                    <span className={tagColor.text}>{tag}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex gap-2">
               <Input

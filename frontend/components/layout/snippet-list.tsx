@@ -2,6 +2,7 @@
 
 import { useAppStore } from "@/lib/store";
 import { Input } from "@/components/ui/input";
+import { getTagColor } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SearchIcon, XIcon, ArrowLeftIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -232,14 +233,17 @@ export function SnippetList() {
                       )}
                       {snippet.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {snippet.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded-md text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+                          {snippet.tags.slice(0, 3).map((tag) => {
+                            const tagColor = getTagColor(tag);
+                            return (
+                              <span
+                                key={tag}
+                                className={`px-1.5 py-0.5 rounded-md text-xs ${tagColor.bg} ${tagColor.text}`}
+                              >
+                                {tag}
+                              </span>
+                            );
+                          })}
                           {snippet.tags.length > 3 && (
                             <span className="text-xs text-muted-foreground">
                               +{snippet.tags.length - 3} more

@@ -2,6 +2,7 @@
 
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { getTagColor } from "@/lib/utils";
 import {
   PlusIcon,
   FolderIcon,
@@ -334,18 +335,23 @@ export function Sidebar() {
               
               {tagsExpanded && (
                 <ul className="space-y-1 mt-1">
-                  {tags.map((tag) => (
-                    <li key={tag.id}>
-                      <Button
-                        variant={currentView === 'tag' && currentViewId === tag.id ? 'secondary' : 'ghost'}
-                        className="w-full justify-start pl-4 text-sm"
-                        onClick={() => setCurrentView('tag', tag.id)}
-                      >
-                        <TagIcon className="h-4 w-4 mr-2" />
-                        {tag.name}
-                      </Button>
-                    </li>
-                  ))}
+                  {tags.map((tag) => {
+                    const tagColor = getTagColor(tag.name);
+                    return (
+                      <li key={tag.id}>
+                        <Button
+                          variant={currentView === 'tag' && currentViewId === tag.id ? 'secondary' : 'ghost'}
+                          className="w-full justify-start pl-4 text-sm"
+                          onClick={() => setCurrentView('tag', tag.id)}
+                        >
+                          <div className={`h-3 w-3 rounded-full mr-2 ${tagColor.bg}`}></div>
+                          <span className={currentView === 'tag' && currentViewId === tag.id ? '' : tagColor.text}>
+                            {tag.name}
+                          </span>
+                        </Button>
+                      </li>
+                    );
+                  })}
                   <li>
                     <Button 
                       variant="ghost" 
