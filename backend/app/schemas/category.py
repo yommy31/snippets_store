@@ -35,6 +35,7 @@ class Category(CategoryBase):
 
     id: str
     created_at: datetime
+    snippet_count: int = 0
 
     class Config:
         """Pydantic config."""

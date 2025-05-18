@@ -3,6 +3,7 @@
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { getTagColor } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 import { 
   EditIcon, 
   StarIcon, 
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 import dynamic from 'next/dynamic';
 import { getLanguageExtension, getThemeBasedOnMode } from '@/lib/codemirror';
 import { useTheme } from 'next-themes';
+import ReactMarkdown from 'react-markdown';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
@@ -78,8 +80,24 @@ export function SnippetDetail() {
   
   // Handle edit button click
   const handleEdit = () => {
-    setEditorMode('edit');
+    logger.debug("触发编辑模式", { snippet: selectedSnippet?.id });
+    
+    if (selectedSnippet) {
+      // 使用useEffect依赖正确处理状态更新顺序
+      setSelectedSnippetId(selectedSnippet.id);
+      setEditorMode('edit');
+    }
   };
+  
+  // 添加这个useEffect来处理状态更新顺序
+  useEffect(() => {
+    if (selectedSnippetId && editorMode === 'edit') {
+      logger.debug("编辑模式已设置", {
+        id: selectedSnippetId,
+        snippet: selectedSnippet
+      });
+    }
+  }, [selectedSnippetId, editorMode, selectedSnippet]);
   
   // Handle delete button click
   const handleDelete = async () => {
@@ -254,13 +272,6 @@ export function SnippetDetail() {
           </div>
         </div>
         
-        {selectedSnippet.description && (
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold mb-1">Description</h3>
-            <p className="text-sm text-muted-foreground">{selectedSnippet.description}</p>
-          </div>
-        )}
-        
         {selectedSnippet.tags.length > 0 && (
           <div className="mb-4">
             <h3 className="text-sm font-semibold mb-1">Tags</h3>
@@ -279,8 +290,17 @@ export function SnippetDetail() {
             </div>
           </div>
         )}
-        
+
         <Separator className="my-4" />
+        
+        {selectedSnippet.description && (
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold mb-1">Description</h3>
+            <div className="prose prose-sm max-w-none dark:prose-invert">
+              <ReactMarkdown>{selectedSnippet.description}</ReactMarkdown>
+            </div>
+          </div>
+        )}
         
         <div>
           <div className="flex justify-between items-center mb-2">

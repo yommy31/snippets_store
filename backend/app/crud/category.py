@@ -17,9 +17,23 @@ def get_categories(db: Session, skip: int = 0, limit: int = 100) -> List[Categor
         limit: Maximum number of records to return
 
     Returns:
-        List of categories
+        List of categories with snippet counts
     """
-    return db.query(Category).offset(skip).limit(limit).all()
+    from sqlalchemy import func
+    from app.models import Snippet
+    
+    # 获取所有分类
+    categories = db.query(Category).offset(skip).limit(limit).all()
+    
+    # 为每个分类计算代码片段数量
+    for category in categories:
+        snippet_count = db.query(func.count(Snippet.id)).filter(
+            Snippet.category_id == category.id,
+            Snippet.is_deleted == False
+        ).scalar()
+        setattr(category, "snippet_count", snippet_count or 0)
+    
+    return categories
 
 
 def get_category(db: Session, category_id: str) -> Category:
@@ -30,14 +44,25 @@ def get_category(db: Session, category_id: str) -> Category:
         category_id: Category ID
 
     Returns:
-        Category object
+        Category object with snippet count
 
     Raises:
         NotFoundError: If category not found
     """
+    from sqlalchemy import func
+    from app.models import Snippet
+    
     category = db.query(Category).filter(Category.id == category_id).first()
     if not category:
         raise NotFoundError("category", category_id)
+    
+    # 计算该分类下的代码片段数量
+    snippet_count = db.query(func.count(Snippet.id)).filter(
+        Snippet.category_id == category_id,
+        Snippet.is_deleted == False
+    ).scalar()
+    setattr(category, "snippet_count", snippet_count or 0)
+    
     return category
 
 

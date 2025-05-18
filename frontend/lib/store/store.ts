@@ -1,16 +1,17 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { 
-  Snippet, 
-  Category, 
-  Tag, 
-  ViewType, 
+import {
+  Snippet,
+  Category,
+  Tag,
+  ViewType,
   EditorMode,
   SnippetCreate,
   SnippetUpdate
 } from '@/types';
 import { api } from '../api/api';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 interface AppState {
   // Data states
@@ -36,6 +37,7 @@ interface AppState {
   setSelectedSnippetId: (id?: string) => void;
   setEditorMode: (mode: EditorMode) => void;
   toggleSidebar: () => void;
+  startCreateSnippet: () => void;
   
   // Data fetching
   fetchSnippets: (params?: any) => Promise<void>;
@@ -83,37 +85,111 @@ export const useAppStore = create<AppState>()(
       setSelectedSnippetId: (id) => set({ selectedSnippetId: id }),
       setEditorMode: (mode) => set({ editorMode: mode }),
       toggleSidebar: () => set((state) => ({ sidebarExpanded: !state.sidebarExpanded })),
+      startCreateSnippet: () => set({
+        selectedSnippetId: undefined,
+        editorMode: 'create'
+      }),
       
       // Data fetching
       fetchSnippets: async (params) => {
         set({ isLoading: true, error: null });
         try {
+          // 抽取搜索参数构建逻辑
+          const buildSearchParams = (params: any) => {
+            const searchParams: any = {};
+            
+            // 确保params存在
+            if (!params) {
+              return searchParams;
+            }
+            
+            // 添加视图上下文
+            if (params.view) {
+              // 添加特定视图过滤器
+              if (params.view === 'favorites') {
+                searchParams.favorite = true;
+              } else if (params.view === 'recycleBin') {
+                searchParams.deleted = true;
+              } else if (params.view === 'category' && params.id) {
+                searchParams.categoryId = params.id;
+              } else if (params.view === 'tag' && params.id) {
+                searchParams.tagId = params.id;
+              }
+            }
+            
+            // 处理搜索查询
+            if (params.search) {
+              searchParams.q = params.search;
+            } else if (params.tag) {
+              searchParams.tag = params.tag;
+            }
+            
+            return searchParams;
+          };
+          
+          // 使用策略模式处理不同类型的搜索
+          const searchStrategies = {
+            // 普通搜索
+            search: async (params: any) => {
+              // 确保params存在
+              if (!params) {
+                return await api.snippets.getAll();
+              }
+              const searchParams = buildSearchParams(params);
+              return await api.snippets.search(searchParams);
+            },
+            
+            // 标签搜索
+            tag: async (params: any) => {
+              // 确保params存在
+              if (!params) {
+                return await api.snippets.getAll();
+              }
+              const searchParams = buildSearchParams(params);
+              return await api.snippets.getAll(searchParams);
+            },
+            
+            // 视图特定搜索
+            view: async (params: any) => {
+              // 确保params存在
+              if (!params) {
+                return await api.snippets.getAll();
+              }
+              
+              if (params.view === 'favorites') {
+                return await api.snippets.getFavorites();
+              } else if (params.view === 'recycleBin') {
+                return await api.snippets.getRecycleBin();
+              } else if (params.view === 'category' && params.id) {
+                return await api.categories.getSnippets(params.id);
+              } else if (params.view === 'tag' && params.id) {
+                return await api.tags.getSnippets(params.id);
+              } else {
+                return await api.snippets.getAll();
+              }
+            }
+          };
+          
           let snippets: Snippet[] = [];
           
-          // Fetch snippets based on current view
-          if (params?.view === 'favorites') {
-            snippets = await api.snippets.getFavorites();
-          } else if (params?.view === 'recycleBin') {
-            snippets = await api.snippets.getRecycleBin();
-          } else if (params?.view === 'category' && params.id) {
-            snippets = await api.categories.getSnippets(params.id);
-          } else if (params?.view === 'tag' && params.id) {
-            snippets = await api.tags.getSnippets(params.id);
+          // 确定使用哪种搜索策略
+          if (!params) {
+            // 如果params为undefined或null，使用默认视图策略
+            snippets = await searchStrategies.view(params);
+          } else if (params.search) {
+            snippets = await searchStrategies.search(params);
+          } else if (params.tag) {
+            snippets = await searchStrategies.tag(params);
           } else {
-            // Use search if query is provided, otherwise get all
-            if (params?.search) {
-              snippets = await api.snippets.search({ q: params.search });
-            } else {
-              snippets = await api.snippets.getAll();
-            }
+            snippets = await searchStrategies.view(params);
           }
           
           set({ snippets, isLoading: false });
         } catch (error) {
-          console.error('Error fetching snippets:', error);
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to fetch snippets', 
-            isLoading: false 
+          logger.error('Error fetching snippets:', error);
+          set({
+            error: error instanceof Error ? error.message : 'Failed to fetch snippets',
+            isLoading: false
           });
           toast.error('Failed to fetch snippets');
         }
@@ -125,7 +201,7 @@ export const useAppStore = create<AppState>()(
           const categories = await api.categories.getAll();
           set({ categories, isLoading: false });
         } catch (error) {
-          console.error('Error fetching categories:', error);
+          logger.error('Error fetching categories:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to fetch categories', 
             isLoading: false 
@@ -140,7 +216,7 @@ export const useAppStore = create<AppState>()(
           const tags = await api.tags.getAll();
           set({ tags, isLoading: false });
         } catch (error) {
-          console.error('Error fetching tags:', error);
+          logger.error('Error fetching tags:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to fetch tags', 
             isLoading: false 
@@ -162,7 +238,7 @@ export const useAppStore = create<AppState>()(
           }));
           toast.success('Snippet created successfully');
         } catch (error) {
-          console.error('Error creating snippet:', error);
+          logger.error('Error creating snippet:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to create snippet', 
             isLoading: false 
@@ -184,7 +260,7 @@ export const useAppStore = create<AppState>()(
           }));
           toast.success('Snippet updated successfully');
         } catch (error) {
-          console.error('Error updating snippet:', error);
+          logger.error('Error updating snippet:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to update snippet', 
             isLoading: false 
@@ -217,7 +293,7 @@ export const useAppStore = create<AppState>()(
           });
           toast.success('Snippet moved to recycle bin');
         } catch (error) {
-          console.error('Error deleting snippet:', error);
+          logger.error('Error deleting snippet:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to delete snippet', 
             isLoading: false 
@@ -238,7 +314,7 @@ export const useAppStore = create<AppState>()(
           }));
           toast.success('Snippet restored successfully');
         } catch (error) {
-          console.error('Error restoring snippet:', error);
+          logger.error('Error restoring snippet:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to restore snippet', 
             isLoading: false 
@@ -265,7 +341,7 @@ export const useAppStore = create<AppState>()(
         try {
           await api.snippets.toggleFavorite(id, newFavoriteStatus);
         } catch (error) {
-          console.error('Error toggling favorite:', error);
+          logger.error('Error toggling favorite:', error);
           
           // Revert on error
           set((state) => ({
@@ -289,7 +365,7 @@ export const useAppStore = create<AppState>()(
           }));
           toast.success('Category created successfully');
         } catch (error) {
-          console.error('Error creating category:', error);
+          logger.error('Error creating category:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to create category', 
             isLoading: false 
@@ -310,7 +386,7 @@ export const useAppStore = create<AppState>()(
           }));
           toast.success('Category updated successfully');
         } catch (error) {
-          console.error('Error updating category:', error);
+          logger.error('Error updating category:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to update category', 
             isLoading: false 
@@ -333,7 +409,7 @@ export const useAppStore = create<AppState>()(
           }));
           toast.success('Category deleted successfully');
         } catch (error) {
-          console.error('Error deleting category:', error);
+          logger.error('Error deleting category:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to delete category', 
             isLoading: false 
@@ -358,7 +434,7 @@ export const useAppStore = create<AppState>()(
             isLoading: false
           }));
         } catch (error) {
-          console.error('Error creating tag:', error);
+          logger.error('Error creating tag:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to create tag', 
             isLoading: false 
@@ -389,7 +465,7 @@ export const useAppStore = create<AppState>()(
           
           toast.success('Tag deleted successfully');
         } catch (error) {
-          console.error('Error deleting tag:', error);
+          logger.error('Error deleting tag:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to delete tag', 
             isLoading: false 

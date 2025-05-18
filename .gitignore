@@ -1,3 +1,8 @@
 .coverage
+.cursorignore
 .pytest_cache/
 .vscode/
+memory_bank/
+memory_bank_bak/
+memory_bank_cursor/
+.cursor/

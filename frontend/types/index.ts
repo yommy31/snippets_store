@@ -27,6 +27,7 @@ export interface Category {
   description?: string;
   parentId?: string;
   createdAt: string;
+  snippetCount: number;
 }
 
 export type CategoryCreate = Omit<Category, 'id' | 'createdAt'>;
@@ -37,6 +38,7 @@ export interface Tag {
   id: string;
   name: string;
   createdAt: string;
+  snippetCount: number;
 }
 
 export type TagCreate = Omit<Tag, 'id' | 'createdAt'>;

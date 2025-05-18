@@ -17,9 +17,24 @@ def get_tags(db: Session, skip: int = 0, limit: int = 100) -> List[Tag]:
         limit: Maximum number of records to return
 
     Returns:
-        List of tags
+        List of tags with snippet counts
     """
-    return db.query(Tag).offset(skip).limit(limit).all()
+    from sqlalchemy import func
+    
+    # 获取所有标签
+    tags = db.query(Tag).offset(skip).limit(limit).all()
+    
+    # 为每个标签计算代码片段数量
+    for tag in tags:
+        snippet_count = db.query(func.count(Snippet.id)).join(
+            snippet_tag, Snippet.id == snippet_tag.c.snippet_id
+        ).filter(
+            snippet_tag.c.tag_id == tag.id,
+            Snippet.is_deleted == False
+        ).scalar()
+        setattr(tag, "snippet_count", snippet_count or 0)
+    
+    return tags
 
 
 def get_tag(db: Session, tag_id: str) -> Tag:
@@ -30,14 +45,26 @@ def get_tag(db: Session, tag_id: str) -> Tag:
         tag_id: Tag ID
 
     Returns:
-        Tag object
+        Tag object with snippet count
 
     Raises:
         NotFoundError: If tag not found
     """
+    from sqlalchemy import func
+    
     tag = db.query(Tag).filter(Tag.id == tag_id).first()
     if not tag:
         raise NotFoundError("tag", tag_id)
+    
+    # 计算该标签下的代码片段数量
+    snippet_count = db.query(func.count(Snippet.id)).join(
+        snippet_tag, Snippet.id == snippet_tag.c.snippet_id
+    ).filter(
+        snippet_tag.c.tag_id == tag_id,
+        Snippet.is_deleted == False
+    ).scalar()
+    setattr(tag, "snippet_count", snippet_count or 0)
+    
     return tag
 
 

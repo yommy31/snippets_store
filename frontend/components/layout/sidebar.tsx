@@ -3,6 +3,7 @@
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { getTagColor } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 import {
   PlusIcon,
   FolderIcon,
@@ -59,13 +60,23 @@ export function Sidebar() {
   const [categoriesExpanded, setCategoriesExpanded] = useState(true);
   const [tagsExpanded, setTagsExpanded] = useState(true);
   
-  // Create a new snippet
+  // 创建新的代码片段
   const handleNewSnippet = () => {
-    // Clear selected snippet and set editor mode to create
+    console.log("触发新建代码片段，当前视图:", currentView, "当前视图ID:", currentViewId);
+    
+    // 清除选中的片段并设置编辑器模式为创建
     setSelectedSnippetId(undefined);
     setEditorMode('create');
-    // Switch to all snippets view
-    setCurrentView('all');
+    
+    // 保持当前视图不变，这样就会使用当前分类
+    // 如果当前已经在分类视图，则不改变视图
+    if (currentView !== 'category') {
+      // 只有当不在分类视图时，才将视图切换为全部，分类ID将在表单中被设为空
+      console.log("不在分类视图，切换到'all'视图");
+      setCurrentView('all');
+    } else {
+      console.log("当前在分类视图，保持不变，使用分类ID:", currentViewId);
+    }
   };
   
   // Toggle categories section
@@ -79,9 +90,9 @@ export function Sidebar() {
   };
   
   return (
-    <aside 
+    <aside
       className={`border-r bg-background h-full flex flex-col transition-all duration-300 ${
-        sidebarExpanded ? 'w-64' : 'w-16'
+        sidebarExpanded ? 'w-72' : 'w-16'
       }`}
     >
       <div className="p-2">
@@ -344,10 +355,20 @@ export function Sidebar() {
                           className="w-full justify-start pl-4 text-sm"
                           onClick={() => setCurrentView('tag', tag.id)}
                         >
-                          <div className={`h-3 w-3 rounded-full mr-2 ${tagColor.bg}`}></div>
-                          <span className={currentView === 'tag' && currentViewId === tag.id ? '' : tagColor.text}>
-                            {tag.name}
-                          </span>
+                          <div className={`h-3 w-3 rounded-full mr-2 flex-shrink-0 ${tagColor.bg}`}></div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`text-sm truncate flex-grow mr-2 ${currentView === 'tag' && currentViewId === tag.id ? '' : tagColor.text}`}>
+                                  {tag.name}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="right">
+                                <p>{tag.name}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">{tag.snippetCount}</span>
                         </Button>
                       </li>
                     );
@@ -497,23 +518,18 @@ function CategoryItem({
     );
   };
   
-  // 添加代码片段
+  // 处理添加代码片段按钮
   const handleAddSnippet = () => {
-    const store = useAppStore.getState();
-    // 先设置当前分类
-    store.setCurrentView('category', category.id);
-    // 清除选中的代码片段
-    store.setSelectedSnippetId(undefined);
-    // 设置编辑器模式为创建
-    store.setEditorMode('create');
+    logger.debug("从分类添加代码片段", { categoryId: category.id });
     
-    // 确保UI更新
-    setTimeout(() => {
-      // 再次确认编辑器模式
-      if (store.editorMode !== 'create') {
-        store.setEditorMode('create');
-      }
-    }, 100);
+    // 使用一个函数来处理状态更新，确保顺序正确
+    const store = useAppStore.getState();
+    
+    // 先设置当前视图
+    store.setCurrentView('category', category.id);
+    
+    // 使用批量更新减少渲染次数
+    store.startCreateSnippet();
   };
   
   return (
@@ -572,8 +588,18 @@ function CategoryItem({
               )}
             </div>
             
-            <FolderIcon className="h-4 w-4 mr-2 text-amber-500" />
-            <span className="text-sm truncate">{category.name}</span>
+            <FolderIcon className="h-4 w-4 mr-2 text-amber-500 flex-shrink-0" />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-sm truncate flex-grow mr-2">{category.name}</span>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{category.name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <span className="text-xs text-muted-foreground flex-shrink-0">{category.snippetCount}</span>
           </div>
         )}
         
@@ -643,21 +669,19 @@ function CategoryItem({
                         <span>Root</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {getValidMoveTargets().map(target => (
-                        <DropdownMenuItem
-                          key={target.id}
-                          onClick={() => {
-                            useAppStore.getState().updateCategory(
-                              category.id,
-                              category.name,
-                              category.description,
-                              target.id
-                            );
-                          }}
-                        >
-                          <span>{target.name}</span>
-                        </DropdownMenuItem>
-                      ))}
+                      <RenderCategoryTree
+                        categories={categories}
+                        currentCategoryId={category.id}
+                        onSelect={(targetId) => {
+                          useAppStore.getState().updateCategory(
+                            category.id,
+                            category.name,
+                            category.description,
+                            targetId
+                          );
+                        }}
+                        excludeDescendants={true}
+                      />
                     </DropdownMenuSubContent>
                   </DropdownMenuPortal>
                 </DropdownMenuSub>
@@ -738,4 +762,57 @@ function isDescendantOf(category: Category, ancestorId: string, allCategories: C
 // 辅助函数：获取根分类（没有父分类的分类）
 function getRootCategories(categories: Category[]): Category[] {
   return categories.filter(c => !c.parentId);
+}
+
+// 辅助函数：递归渲染目录树，用于移动分类和选择分类
+interface RenderCategoryTreeProps {
+  categories: Category[];
+  currentCategoryId?: string; // 当前分类ID，用于排除自己及子分类
+  onSelect: (categoryId: string) => void;
+  excludeDescendants?: boolean; // 是否排除后代
+}
+
+function RenderCategoryTree({
+  categories,
+  currentCategoryId,
+  onSelect,
+  excludeDescendants = false
+}: RenderCategoryTreeProps) {
+  // 获取根分类
+  const rootCategories = categories.filter(c => !c.parentId);
+  
+  // 渲染分类及其子分类
+  const renderCategory = (category: Category, level: number = 0) => {
+    // 如果需要排除自身及其后代，则跳过
+    if (excludeDescendants && 
+        currentCategoryId && 
+        (category.id === currentCategoryId || isDescendantOf(category, currentCategoryId, categories))) {
+      return null;
+    }
+
+    // 获取子分类
+    const childCategories = categories.filter(c => c.parentId === category.id);
+    
+    return (
+      <div key={category.id}>
+        <DropdownMenuItem onClick={() => onSelect(category.id)}>
+          <div className="flex items-center truncate">
+            <span className="truncate">
+              {level > 0 && (
+                <span className="text-muted-foreground mr-1">
+                  {Array(level).fill('— ').join('')}
+                </span>
+              )}
+              {category.name}
+            </span>
+          </div>
+        </DropdownMenuItem>
+        
+        {/* 递归渲染子分类 */}
+        {childCategories.map(child => renderCategory(child, level + 1))}
+      </div>
+    );
+  };
+  
+  return <>{rootCategories.map(category => renderCategory(category))}</>;
 }

@@ -31,6 +31,7 @@ class Tag(TagBase):
 
     id: str
     created_at: datetime
+    snippet_count: int = 0
 
     class Config:
         """Pydantic config."""
